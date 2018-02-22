@@ -1,3 +1,5 @@
+/* Game state demo test, based off the filltest example from gbdk */
+
 #include <stdio.h>
 #include <gb/gb.h>
 #include <gb/font.h>
@@ -104,15 +106,6 @@ void scroll_screen() {
         line(0,143,159,143);
         scroll_status = FINISHED_SCROLLING;
     }
-    /* Scroll the screen using the hardest method imaginable :) */
-    //for (vertical_line=0; vertical_line<=142; vertical_line++) { /* vertical offset */
-    //  for (horizontal_line=0; horizontal_line<=159; horizontal_line++) { /*horizontal offset */
-    //        color(getpix(horizontal_line,vertical_line+1),WHITE,SOLID);
-    //        plot_point(horizontal_line,vertical_line);
-    //    }
-    //    color(WHITE,WHITE,SOLID);
-    //}
-    //line(0,143,159,143);
 }
 
 void init_scroll_test_menu() {
@@ -190,6 +183,13 @@ void gl_main_menu(){
 
 void main()
 {
+    // Set up initial game state
+    // Load background into graphics memory
+
+
+
+
+
     /* Ensure our gameboy is working */
     init_filler_screen();
 
