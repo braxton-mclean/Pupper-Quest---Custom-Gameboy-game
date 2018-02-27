@@ -1,211 +1,96 @@
-/* Game state demo test, based off the filltest example from gbdk */
+/* Game state demo test */
 
-#include <stdio.h>
 #include <gb/gb.h>
-#include <gb/font.h>
-#include <gb/console.h>
-#include <gb/drawing.h>
 
-#define SCROLLING 0x01
-#define FINISHED_SCROLLING 0x02
-#define AA_SCROLL_TEST 0x01
-#define AA_MAIN_MENU 0x02
-#define GS_IDLE 0x01
-#define GS_MENU 0x02
+#include "alpha.c"
 
-/* Dummy variables for loops */
-UBYTE a, b, c, d, e;
+#define GS_MENU = 0x00;
+#define GS_PLAY = 0x01;
 
-UBYTE time;
+void update_switches();
+void init_device();
+void input_process();
 
-UBYTE joypad_input;
+UBYTE i, j, k; // Define globals for loops as to avoid declaring variables onto the stack
 
-/* Variables for scrolling */
-UBYTE horizontal_line, vertical_line, scroll_status;
+/* Variables for player */
+UBYTE player_loc[2]; // store x,y location of sprite
+UBYTE health = 10;
 
-/* Area state of our game, used to define game screen presence (main menu, game level 1, etc.) */
-UBYTE active_area;
-/* State of our game, paused, menu, etc.) */
-UBYTE game_state;
+/* Variables for other entities */
+UBYTE entities[3][5]; // store x,y and status
 
 /* graphics data variables */
 UWORD idx;
+
+/* 8x8 description of color, in this case all white/blank pixels */ 
 const UBYTE blankTile[] ={ 
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+    0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00
 };
 
-void clear_screen_inefficiently();
-void clear_screen();
-void init_filler_screen();
-void init_scroll_screen();
-void scroll_screen();
-void init_scroll_test_menu();
-void init_scroll_test_idle();
-void gl_scroll_test();
-void gl_main_menu();
+/* 20 tile spaces pointing at tile address 0 */ 
+const UBYTE blankLine[] ={
+	0x00,0x00,0x00,0x00,
+	0x00,0x00,0x00,0x00,
+	0x00,0x00,0x00,0x00,
+	0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00
+};
 
-/* The most inefficient method to clear the screen, looks cool though */ 
-void clear_screen_inefficiently() {
-    for (vertical_line=0; vertical_line!=143; vertical_line++) { /* vertical offset */
-       for (horizontal_line=0; horizontal_line!=160; horizontal_line++) { /*horizontal offset */
-            color(WHITE,WHITE,SOLID);
-            plot_point(horizontal_line,vertical_line);
-        }
-    }
-    line(0,143,159,143);
+const UBYTE helloWorld[] =
+{
+  0x19,0x16,0x1D,0x1D,0x20, //Hello
+  0x28,0x20,0x23,0x1D,0x15  //World
+};
+
+void update_switches() {
+	HIDE_WIN;
+	SHOW_SPRITES;
+	SHOW_BKG;
 }
 
-/* Clear the screen in a faster, smarter way, way less cool */
-/* DONT USE Currently does not work consistently, am unsure why though... Seems to be an inconsistent nature of the register that handles the addresses for VRAM sheet starts, cant tell if its the emulator or my code*/
-void clear_screen() {
-    display_off;
-    disable_interrupts();
-    for(idx=16; idx != 0xFF; idx++) { //Changed to 16 for hope that maybe its the nintendo logo that has to stay around?
-        set_bkg_data(idx, 0x01, blankTile);
-        set_sprite_data(idx, 0x01, blankTile);
-    }
-    enable_interrupts();
-    DISPLAY_ON;
+void init_device() {
+	DISPLAY_ON;
+	NR52_REG = 0x8F;
+	NR51_REG = 0x11;
+	NR50_REG = 0x77;
+	// Wipe Nintendo logo tile locations back to default of 0
+	set_bkg_tiles(0, 8, 20, 1, blankLine);
+	set_bkg_tiles(0, 9, 20, 1, blankLine);
+
+	set_bkg_data(1, 48, alpha);
+
 }
 
-void init_filler_screen() {
-    c = 0;
-
-    /* Some filler-text */
-    for (a=0; a!=18; a++) {
-        for (b=0; b!=16; b++) {
-            gotogxy(b,a);
-            d=a/4;
-            e=b/4;
-            if (d==e) {
-              d=3-e;
-            }
-            color(d,e,SOLID);
-            gprintf("%c",c++);
-            delay(10);
-        } 
-    }
+void input_process() {
+	if (joypad() & J_B) {
+		set_bkg_tiles(5, 0, 10, 1, helloWorld); // Start at x = 5, y = 0, copy 10 tiles from helloWorld into a single line
+	}
 }
 
-void init_scroll_screen() {
-    vertical_line = 0;
-    horizontal_line = 0;
-    scroll_status = SCROLLING;
-}
-
-void scroll_screen() {
-    if(vertical_line!=143) {
-        for (horizontal_line=0; horizontal_line!=160; horizontal_line++) { /*horizontal offset */
-            color(getpix(horizontal_line,vertical_line+1),WHITE,SOLID);
-            plot_point(horizontal_line,vertical_line);
-        }
-        color(WHITE,WHITE,SOLID);
-        vertical_line++;
-    } else {
-        line(0,143,159,143);
-        scroll_status = FINISHED_SCROLLING;
-    }
-}
-
-void init_scroll_test_menu() {
-    clear_screen_inefficiently();
-    init_filler_screen();
-    init_scroll_screen();
-}
-
-void init_scroll_test_idle() {
-    clear_screen_inefficiently();
-
-    /* Draw two circles, a line, and two boxes in different drawing modes */
-    color(LTGREY,WHITE,SOLID);
-    delay(500);
-    circle(140,20,15,M_FILL);
-    delay(500);
-    color(BLACK,WHITE,SOLID);
-    circle(140,20,10,M_NOFILL);
-    delay(500);
-    color(DKGREY,WHITE,XOR);
-    circle(120,40,30,M_FILL);
-    delay(500);
-    line(0,0,159,143);
-    color(BLACK,LTGREY,SOLID);
-    delay(500);
-    box(0,130,40,143,M_NOFILL);
-    box(50,130,90,143,M_FILL);
-
-    init_scroll_screen();
-}
-
-void init_main_menu_menu() {
-    clear_screen_inefficiently();
-    gotogxy(3,3);
-    color(3,0,SOLID);
-    gprintf("PUPPER  QUEST!");
-    color(0,0,SOLID);
-    line(0,143,159,143);
-}
-
-/* game logic for AA_SCROLL_TEST */
-void gl_scroll_test(){
-    if (joypad_input&J_SELECT) {
-        if(game_state!=GS_MENU){
-            game_state = GS_MENU;
-            init_scroll_test_menu();
-        }
-    } else if (joypad_input&J_START) {
-        if(active_area!=AA_MAIN_MENU) {
-            active_area = AA_MAIN_MENU;
-            game_state = GS_MENU;
-            init_main_menu_menu();
-        }
-    }
-
-    if(game_state&GS_IDLE) {
-        if(scroll_status != FINISHED_SCROLLING) {
-            scroll_screen();
-        } else if((time&0x08)==0) {
-            init_scroll_screen();
-        }
-    } else if (game_state&GS_MENU) {
-        if(scroll_status != FINISHED_SCROLLING) {
-            scroll_screen();
-        } else if((time&0x08)==0) {
-            init_scroll_screen();
-        }
-    }
-}
-
-/* game logic for AA_MAIN_MENU */
-void gl_main_menu(){
-    
+UBYTE rect_collision(UBYTE x1, UBYTE y1, UBYTE w1, UBYTE h1, // object 1
+					UBYTE x2, UBYTE y2, UBYTE w2, UBYTE h2) { // object 2
+	
+	if ((x1 < (x2+w2)) && ((x1+w1) > x2) && (y1 < (h2+y2)) && ((y1+h1) > y2)) {
+		return 1;
+	}
+	return 0;
 }
 
 void main()
 {
-    // Set up initial game state
-    // Load background into graphics memory
+    // Set up initial device settings
+	init_device();
 
+	while(1) {
+		if ()
+		input_process();
+		update_switches();
 
-
-
-
-    /* Ensure our gameboy is working */
-    init_filler_screen();
-
-    /* Base state logic setup for AA_SCROLL_TEST and GS_IDLE*/
-    active_area = AA_SCROLL_TEST;
-    game_state = GS_IDLE;
-    init_scroll_test_idle();
-    delay(1000);
-
-    while(1) {
-        time++;
-        joypad_input = joypad();
-        if(active_area&AA_SCROLL_TEST) {
-            gl_scroll_test();
-        } else if (active_area&AA_MAIN_MENU) {
-            gl_main_menu();
-        }
-    }
+		// Wait so we only process once a frame
+		wait_vbl_done();
+	}
 }
